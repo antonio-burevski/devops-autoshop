@@ -1,43 +1,28 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: autoshop-db
     environment:
       POSTGRES_USER: autoshop
       POSTGRES_PASSWORD: autoshop123
       POSTGRES_DB: autoshop
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init_db.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U autoshop -d autoshop"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: autoshop-backend
-    environment:
-      DATABASE_URL: postgresql://autoshop:autoshop123@db:5432/autoshop
-      ALLOWED_ORIGINS: '["*"]'
-    ports:
-      - "8080:8000"
+    image: 192.168.100.64:8082/autoshop-backend:latest
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "8080:8000"
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: autoshop-frontend
-    ports:
-      - "3000:80"
+    image: 192.168.100.64:8082/autoshop-frontend:latest
     depends_on:
       - backend
+    ports:
+      - "3000:80"
 
 volumes:
   postgres_data:
+
