@@ -1,5 +1,4 @@
 -- Auto/Moto Shop Database Schema
--- Matches SQLAlchemy models for consistency
 
 -- ============================================================================
 -- Table: customers
