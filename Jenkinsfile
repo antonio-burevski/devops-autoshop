@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NEXUS_REGISTRY = "192.168.100.64:8082"
+        NEXUS_REGISTRY = "192.168.100.67:8082"
         IMAGE_TAG      = "${env.BUILD_NUMBER}"
         NEXUS_CREDS    = credentials('nexus-creds')
     }
