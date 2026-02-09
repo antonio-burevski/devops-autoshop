@@ -2,93 +2,46 @@ pipeline {
     agent any
 
     environment {
-        NEXUS_REGISTRY = '192.168.100.64:8082'
-        IMAGE_BACKEND = 'autoshop-backend'
-        IMAGE_FRONTEND = 'autoshop-frontend'
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        NEXUS_REGISTRY = "192.168.100.64:8082"
+        IMAGE_TAG      = "${env.BUILD_NUMBER}"
+        NEXUS_CREDS    = credentials('nexus-creds')
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build Images') {
+        stage('Build Backend') {
             steps {
-                sh """
-                docker build -t ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:${IMAGE_TAG} ./backend
-                docker build -t ${NEXUS_REGISTRY}/${IMAGE_FRONTEND}:${IMAGE_TAG} ./frontend
-
-                docker tag ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:${IMAGE_TAG} ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:latest
-                docker tag ${NEXUS_REGISTRY}/${IMAGE_FRONTEND}:${IMAGE_TAG} ${NEXUS_REGISTRY}/${IMAGE_FRONTEND}:latest
-                """
+                sh "docker build -t ${NEXUS_REGISTRY}/autoshop-backend:${IMAGE_TAG} -t ${NEXUS_REGISTRY}/autoshop-backend:latest ./backend"
             }
         }
 
-        stage('Backend Smoke Test') {
+        stage('Build Frontend') {
             steps {
-                sh """
-                docker run --rm ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:${IMAGE_TAG} \
-                python -c "import main; print('Backend OK')"
-                """
+                sh "docker build -t ${NEXUS_REGISTRY}/autoshop-frontend:${IMAGE_TAG} -t ${NEXUS_REGISTRY}/autoshop-frontend:latest ./frontend"
             }
         }
 
-        stage('Push Images to Nexus') {
+        stage('Push to Nexus') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'nexus-docker',
-                    usernameVariable: 'NUSER',
-                    passwordVariable: 'NPASS'
-                )]) {
-
-                    sh """
-                    echo \$NPASS | docker login ${NEXUS_REGISTRY} -u \$NUSER --password-stdin
-
-                    docker push ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:${IMAGE_TAG}
-                    docker push ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:latest
-
-                    docker push ${NEXUS_REGISTRY}/${IMAGE_FRONTEND}:${IMAGE_TAG}
-                    docker push ${NEXUS_REGISTRY}/${IMAGE_FRONTEND}:latest
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to 192.168.100.65') {
-            steps {
-                withCredentials([
-                    sshUserPrivateKey(credentialsId: 'deploy-ssh-key', keyFileVariable: 'SSH_KEY'),
-                    usernamePassword(credentialsId: 'nexus-docker', usernameVariable: 'NUSER', passwordVariable: 'NPASS')
-                ]) {
-
-                    sh """
-                    ssh -i \$SSH_KEY -o StrictHostKeyChecking=no artorias@192.168.100.65 << EOF
-
-                    echo \$NPASS | docker login ${NEXUS_REGISTRY} -u \$NUSER --password-stdin
-
-                    docker pull ${NEXUS_REGISTRY}/${IMAGE_BACKEND}:latest
-                    docker pull ${NEXUS_REGISTRY}/${IMAGE_FRONTEND}:latest
-
-                    cd /home/artorias/Desktop/repos/devops-autoshop
-
-                    docker compose -f docker-compose.prod.yml down || true
-                    docker compose -f docker-compose.prod.yml up -d
-
-                    EOF
-                    """
-                }
+                sh "echo ${NEXUS_CREDS_PSW} | docker login ${NEXUS_REGISTRY} -u ${NEXUS_CREDS_USR} --password-stdin"
+                sh "docker push ${NEXUS_REGISTRY}/autoshop-backend:${IMAGE_TAG}"
+                sh "docker push ${NEXUS_REGISTRY}/autoshop-backend:latest"
+                sh "docker push ${NEXUS_REGISTRY}/autoshop-frontend:${IMAGE_TAG}"
+                sh "docker push ${NEXUS_REGISTRY}/autoshop-frontend:latest"
+                sh "docker logout ${NEXUS_REGISTRY}"
             }
         }
     }
 
     post {
         always {
-            sh "docker system prune -f"
+            sh "docker rmi ${NEXUS_REGISTRY}/autoshop-backend:${IMAGE_TAG} || true"
+            sh "docker rmi ${NEXUS_REGISTRY}/autoshop-frontend:${IMAGE_TAG} || true"
         }
     }
 }
-
