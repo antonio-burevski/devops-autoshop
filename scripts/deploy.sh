@@ -22,6 +22,11 @@ echo " Active environment:   $ACTIVE"
 echo " Deploying to:         $INACTIVE"
 echo "========================================"
 
+# Ensure all services are up (db, nginx, and both environments)
+echo ""
+echo ">> Ensuring all services are running..."
+docker compose -f "$COMPOSE_FILE" up -d
+
 # Pull latest images
 echo ""
 echo ">> Pulling latest images..."
