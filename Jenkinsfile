@@ -6,7 +6,6 @@ pipeline {
         IMAGE_TAG      = "${env.BUILD_NUMBER}"
         NEXUS_CREDS    = credentials('nexus-creds')
         DEPLOY_HOST    = "192.168.100.65"
-        DEPLOY_USER    = "artorias"
         DEPLOY_DIR     = "/home/artorias/Desktop/repos/devops-autoshop"
     }
 
@@ -42,9 +41,9 @@ pipeline {
 
         stage('Deploy to Inactive Environment') {
             steps {
-                sshagent(credentials: ['deploy-ssh-creds']) {
+                withCredentials([sshUserPrivateKey(credentialsId: 'deploy-ssh-creds', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
+                        ssh -o StrictHostKeyChecking=no -i \$SSH_KEY \$SSH_USER@${DEPLOY_HOST} '
                             cd ${DEPLOY_DIR}
                             git pull origin main
                             bash scripts/deploy.sh
@@ -57,9 +56,9 @@ pipeline {
 
     post {
         failure {
-            sshagent(credentials: ['deploy-ssh-creds']) {
+            withCredentials([sshUserPrivateKey(credentialsId: 'deploy-ssh-creds', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
                 sh """
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} '
+                    ssh -o StrictHostKeyChecking=no -i \$SSH_KEY \$SSH_USER@${DEPLOY_HOST} '
                         cd ${DEPLOY_DIR}
                         NGINX_CONF=${DEPLOY_DIR}/nginx/nginx.conf
                         if grep -q "frontend-blue" \$NGINX_CONF; then
