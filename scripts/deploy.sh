@@ -39,7 +39,7 @@ MAX_RETRIES=30
 RETRY_INTERVAL=2
 
 for i in $(seq 1 $MAX_RETRIES); do
-    if docker compose -f "$COMPOSE_FILE" exec -T "frontend-${INACTIVE}" wget -qO- http://localhost/health > /dev/null 2>&1; then
+    if docker compose -f "$COMPOSE_FILE" exec -T "frontend-${INACTIVE}" wget -qO- http://127.0.0.1/health > /dev/null 2>&1; then
         echo "   Health check passed! ($i/$MAX_RETRIES)"
         break
     fi
