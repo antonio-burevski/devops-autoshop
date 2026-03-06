@@ -3,21 +3,31 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-NGINX_CONF="$PROJECT_DIR/nginx/nginx.conf"
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <blue|green>"
+if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "Usage: $0 <prod|dev> <blue|green>"
     exit 1
 fi
 
-TARGET="$1"
+ENV="$1"
+TARGET="$2"
 
 if [ "$TARGET" != "blue" ] && [ "$TARGET" != "green" ]; then
-    echo "Error: argument must be 'blue' or 'green'"
+    echo "Error: second argument must be 'blue' or 'green'"
     exit 1
 fi
 
-echo "Switching traffic to $TARGET environment..."
+if [ "$ENV" = "dev" ]; then
+    NGINX_CONF="$PROJECT_DIR/nginx/nginx.dev.conf"
+    COMPOSE_FILE="$PROJECT_DIR/docker-compose.dev.yml"
+    COMPOSE_PROJECT="autoshop-dev"
+else
+    NGINX_CONF="$PROJECT_DIR/nginx/nginx.conf"
+    COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
+    COMPOSE_PROJECT="autoshop"
+fi
+
+echo "Switching [$ENV] traffic to $TARGET environment..."
 
 cat > "$NGINX_CONF" <<EOF
 upstream active {
@@ -40,6 +50,6 @@ server {
 EOF
 
 # Reload nginx without downtime
-docker compose -f "$PROJECT_DIR/docker-compose.yml" exec nginx nginx -s reload
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" exec nginx nginx -s reload
 
 echo "Traffic switched to $TARGET environment successfully."

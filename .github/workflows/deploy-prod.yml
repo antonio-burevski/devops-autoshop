@@ -1,0 +1,37 @@
+name: Deploy Prod
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  deploy:
+    name: Deploy to Production (port 80)
+    runs-on: ubuntu-latest
+    environment: production
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Deploy to prod via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io \
+              -u ${{ github.event.workflow_run.head_repository.owner.login }} \
+              --password-stdin
+
+            cd ${{ secrets.DEPLOY_DIR }}
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            REGISTRY=ghcr.io/${{ github.event.workflow_run.head_repository.owner.login }} \
+            IMAGE_TAG=${{ github.event.workflow_run.head_sha }} \
+            bash scripts/deploy.sh prod
+
+            docker logout ghcr.io

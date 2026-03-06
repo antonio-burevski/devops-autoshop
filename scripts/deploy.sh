@@ -3,11 +3,21 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-NGINX_CONF="$PROJECT_DIR/nginx/nginx.conf"
-COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
+
+ENV="${1:-prod}"
+
+if [ "$ENV" = "dev" ]; then
+    COMPOSE_FILE="$PROJECT_DIR/docker-compose.dev.yml"
+    COMPOSE_PROJECT="autoshop-dev"
+    NGINX_CONF="$PROJECT_DIR/nginx/nginx.dev.conf"
+else
+    COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
+    COMPOSE_PROJECT="autoshop"
+    NGINX_CONF="$PROJECT_DIR/nginx/nginx.conf"
+fi
 
 # Determine currently active environment
-if grep -q "frontend-blue" "$NGINX_CONF"; then
+if grep -q "frontend-blue" "$NGINX_CONF" 2>/dev/null; then
     ACTIVE="blue"
     INACTIVE="green"
 else
@@ -16,7 +26,7 @@ else
 fi
 
 echo "========================================"
-echo " Blue-Green Deployment"
+echo " Blue-Green Deployment [$ENV]"
 echo "========================================"
 echo " Active environment:   $ACTIVE"
 echo " Deploying to:         $INACTIVE"
@@ -25,17 +35,17 @@ echo "========================================"
 # Ensure all services are up (db, nginx, and both environments)
 echo ""
 echo ">> Ensuring all services are running..."
-docker compose -f "$COMPOSE_FILE" up -d
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d
 
 # Pull latest images
 echo ""
 echo ">> Pulling latest images..."
-docker compose -f "$COMPOSE_FILE" pull "frontend-${INACTIVE}" "backend-${INACTIVE}"
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" pull "frontend-${INACTIVE}" "backend-${INACTIVE}"
 
 # Recreate inactive environment containers with new images
 echo ""
 echo ">> Recreating $INACTIVE environment containers..."
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate "backend-${INACTIVE}" "frontend-${INACTIVE}"
+docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" up -d --force-recreate "backend-${INACTIVE}" "frontend-${INACTIVE}"
 
 # Wait for the new environment to become healthy
 echo ""
@@ -44,7 +54,7 @@ MAX_RETRIES=30
 RETRY_INTERVAL=2
 
 for i in $(seq 1 $MAX_RETRIES); do
-    if docker compose -f "$COMPOSE_FILE" exec -T "frontend-${INACTIVE}" wget -qO- http://127.0.0.1/health > /dev/null 2>&1; then
+    if docker compose -p "$COMPOSE_PROJECT" -f "$COMPOSE_FILE" exec -T "frontend-${INACTIVE}" wget -qO- http://127.0.0.1/health > /dev/null 2>&1; then
         echo "   Health check passed! ($i/$MAX_RETRIES)"
         break
     fi
@@ -62,7 +72,7 @@ done
 # Switch traffic to the new environment
 echo ""
 echo ">> Switching traffic to $INACTIVE environment..."
-"$SCRIPT_DIR/switch.sh" "$INACTIVE"
+"$SCRIPT_DIR/switch.sh" "$ENV" "$INACTIVE"
 
 echo ""
 echo "========================================"
@@ -71,5 +81,5 @@ echo " Active environment is now: $INACTIVE"
 echo "========================================"
 echo ""
 echo " To rollback, run:"
-echo "   $SCRIPT_DIR/switch.sh $ACTIVE"
+echo "   $SCRIPT_DIR/switch.sh $ENV $ACTIVE"
 echo ""

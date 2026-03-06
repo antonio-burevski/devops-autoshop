@@ -45,3 +45,5 @@ htmlcov/
 # Build artifacts
 *.egg-info/
 *.egg
+test.db
+.venv/
