@@ -9,29 +9,27 @@ on:
 jobs:
   deploy:
     name: Deploy to Production (port 80)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: production
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Deploy to prod via SSH
-        uses: appleboy/ssh-action@v1
+      - name: Checkout main
+        uses: actions/checkout@v4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io \
-              -u ${{ github.event.workflow_run.head_repository.owner.login }} \
-              --password-stdin
+          ref: main
 
-            cd ${{ secrets.DEPLOY_DIR }}
-            git fetch origin main
-            git checkout main
-            git pull origin main
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.event.workflow_run.head_repository.owner.login }} --password-stdin
 
-            REGISTRY=ghcr.io/${{ github.event.workflow_run.head_repository.owner.login }} \
-            IMAGE_TAG=${{ github.event.workflow_run.head_sha }} \
-            bash scripts/deploy.sh prod
+      - name: Deploy
+        run: |
+          cd /home/toki/Desktop/repos/devops-autoshop
+          git pull origin main
+          REGISTRY=ghcr.io/${{ github.event.workflow_run.head_repository.owner.login }} \
+          IMAGE_TAG=${{ github.event.workflow_run.head_sha }} \
+          bash scripts/deploy.sh prod
 
-            docker logout ghcr.io
+      - name: Docker logout
+        if: always()
+        run: docker logout ghcr.io
